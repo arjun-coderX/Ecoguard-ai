@@ -1,0 +1,8 @@
+numpy>=1.26
+scipy>=1.11
+scikit-learn>=1.4
+scikit-image>=0.22
+Pillow>=10.0
+pytest>=8.0
+# optional, for real Sentinel-2 GeoTIFFs
+# rasterio>=1.3

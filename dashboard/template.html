@@ -1,0 +1,711 @@
+<title>Vanagni Fire Watch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Noto+Sans:wght@400;500;600&family=Noto+Sans+Devanagari:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a topo-sheet - the map is the page; a range office's
+   evening briefing sits beside it; evidence for the method below. */
+:root {
+  --paper: #EDF0EC; --sheet: #F8F9F6; --ink: #18221F; --ink-2: #51605A;
+  --rule: #C7D0C9; --spruce: #1E5C52; --spruce-wash: rgba(30, 92, 82, .12);
+  --r1: #E6CE5C; --r2: #EE9B3A; --r3: #D4512A; --r4: #8C1A2B;
+  --src-terrain: #A2763A; --src-sat: #24857F; --src-rep: #7A5CA6;
+  --water: #7FA9C4; --settle: #5D6662; --shade-lo: #9AA59F; --shade-hi: #F4F6F2;
+  --f-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --f-body: "Noto Sans", "Noto Sans Devanagari", system-ui, sans-serif;
+  --f-hi: "Noto Sans Devanagari", "Noto Sans", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #101513; --sheet: #172019; --ink: #E2E9E4; --ink-2: #98A79F;
+  --rule: #2B3731; --spruce: #73C4B2; --spruce-wash: rgba(115, 196, 178, .14);
+  --water: #3C6684; --settle: #8D9692; --shade-lo: #1A211E; --shade-hi: #4A5650;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --paper: #101513; --sheet: #172019; --ink: #E2E9E4; --ink-2: #98A79F;
+  --rule: #2B3731; --spruce: #73C4B2; --spruce-wash: rgba(115, 196, 178, .14);
+  --water: #3C6684; --settle: #8D9692; --shade-lo: #1A211E; --shade-hi: #4A5650;
+  color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font: 14px/1.5 var(--f-body);
+  padding: 0 clamp(16px, 3vw, 36px); padding-block: 20px 48px; }
+.wrap { max-width: 1280px; margin: 0 auto; display: grid; gap: 28px; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 600; letter-spacing: .01em;
+  margin: 0; text-wrap: balance; }
+.label { font: 600 11.5px/1.2 var(--f-display); text-transform: uppercase;
+  letter-spacing: .09em; color: var(--ink-2); }
+.mono, .num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+button, input, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--spruce); outline-offset: 2px; }
+
+/* ---- masthead ---- */
+.mast { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between;
+  gap: 12px 24px; border-bottom: 2px solid var(--ink); padding-bottom: 10px; }
+.brand { display: flex; align-items: baseline; gap: 12px; }
+.brand h1 { font-size: 34px; line-height: 1; font-weight: 700; letter-spacing: .02em; }
+.brand .hi { font: 500 19px var(--f-hi); color: var(--ink-2); }
+.sheetmeta { display: flex; flex-wrap: wrap; gap: 4px 20px; font-size: 12.5px; color: var(--ink-2); }
+.sheetmeta b { color: var(--ink); font-weight: 600; }
+
+/* ---- controls ---- */
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+.date { display: grid; min-width: 168px; }
+.date strong { font: 600 26px/1.05 var(--f-display); }
+.slider { flex: 1 1 260px; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.slider input { flex: 1; min-width: 0; accent-color: var(--spruce); }
+.btn { border: 1px solid var(--rule); background: var(--sheet); border-radius: 3px;
+  padding: 6px 12px; cursor: pointer; font-weight: 500; }
+.btn:hover { border-color: var(--ink-2); }
+.btn.primary { background: var(--spruce); color: var(--sheet); border-color: var(--spruce); }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
+.seg button { border: 0; background: var(--sheet); padding: 6px 12px; cursor: pointer;
+  border-right: 1px solid var(--rule); }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.check { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; }
+.check input { accent-color: var(--spruce); }
+
+/* ---- main ---- */
+.main { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+.mapbox { display: grid; gap: 10px; min-width: 0; }
+.frame { position: relative; padding: 22px 30px 22px 34px; border: 1px solid var(--ink);
+  background: var(--sheet); }
+.frame canvas { display: block; width: 100%; aspect-ratio: 1; image-rendering: pixelated;
+  cursor: crosshair; max-width: 100%; }
+.tick { position: absolute; font: 10px var(--f-mono); color: var(--ink-2); white-space: nowrap; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; font-size: 12.5px; }
+.legend i { display: inline-block; width: 14px; height: 10px; margin-right: 5px; vertical-align: -1px;
+  border: 1px solid rgba(0,0,0,.15); }
+.caption { font-size: 12.5px; color: var(--ink-2); max-width: 70ch; }
+
+.side { display: grid; gap: 18px; min-width: 0; }
+.ranges { display: flex; flex-wrap: wrap; gap: 6px; }
+.ranges button { border: 1px solid var(--rule); background: var(--sheet); padding: 6px 10px 5px;
+  border-radius: 3px; cursor: pointer; display: grid; text-align: left; min-width: 104px; }
+.ranges button[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 -3px 0 var(--ink); }
+.ranges .nm { font: 600 15px/1.1 var(--f-display); }
+.ranges .sub { font-size: 11.5px; color: var(--ink-2); display: flex; gap: 6px; align-items: center; }
+.pill { display: inline-block; padding: 0 6px; border-radius: 2px; font: 600 10.5px/1.6 var(--f-display);
+  letter-spacing: .06em; text-transform: uppercase; color: #fff; background: var(--ink-2); }
+.pill.l0 { background: #6E8B7D; } .pill.l1 { background: #B19A2A; } .pill.l2 { background: #D7832A; }
+.pill.l3 { background: #C2441F; } .pill.l4 { background: #7E1626; }
+
+.panel { background: var(--sheet); border: 1px solid var(--rule); padding: 14px 16px; display: grid; gap: 10px; min-width: 0; }
+.panel h3 { font-size: 18px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.doc { font-size: 13.5px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.doc[lang="hi"] { font-family: var(--f-hi); }
+.doc .head { font-weight: 600; }
+mark { background: var(--spruce-wash); color: inherit; border-bottom: 1.5px solid var(--spruce);
+  padding: 0 1px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 12px; border: 1px solid var(--rule); border-radius: 2px; padding: 1px 7px; background: var(--paper); }
+.chip b { font-family: var(--f-mono); font-weight: 500; }
+.chip.miss { color: var(--ink-2); border-style: dashed; }
+textarea { width: 100%; min-height: 128px; resize: vertical; border: 1px solid var(--rule);
+  background: var(--paper); padding: 8px 10px; font-size: 13px; line-height: 1.55; border-radius: 3px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.delta { font-size: 13.5px; }
+.delta strong { font-family: var(--f-mono); font-weight: 500; }
+.up { color: var(--r3); } .down { color: var(--src-sat); }
+
+.cell dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; margin: 0; font-size: 13px; }
+.cell dt { color: var(--ink-2); }
+.cell dd { margin: 0; font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.bars { display: grid; gap: 4px; }
+.bar { display: grid; grid-template-columns: 74px 1fr 64px; gap: 8px; align-items: center; font-size: 12.5px; }
+.bar .track { height: 8px; background: var(--paper); position: relative; }
+.bar .fill { position: absolute; top: 0; bottom: 0; }
+.bar .v { font-family: var(--f-mono); font-size: 11.5px; text-align: right; }
+
+/* ---- lower sections ---- */
+section.lower { display: grid; gap: 14px; border-top: 1px solid var(--ink); padding-top: 14px; }
+section.lower > header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 6px 16px; }
+section.lower h2 { font-size: 24px; }
+.chart { overflow-x: auto; }
+.chart svg { display: block; width: 100%; min-width: 560px; height: auto; }
+.two { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 28px; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--rule); }
+th { font: 600 11.5px var(--f-display); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+td.n { font-family: var(--f-mono); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+th.n { text-align: right; }
+tr.fused td { font-weight: 600; background: var(--spruce-wash); }
+.tablewrap { overflow-x: auto; }
+.note { font-size: 13px; color: var(--ink-2); max-width: 72ch; }
+.how { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.how h3 { font-size: 17px; margin-bottom: 4px; }
+.how p { margin: 0; font-size: 13.5px; max-width: 48ch; }
+.how .src { display: inline-block; width: 10px; height: 10px; margin-right: 6px; }
+.busy { font-size: 12px; color: var(--ink-2); min-height: 1.5em; }
+
+@media (max-width: 940px) {
+  .main, .two { grid-template-columns: 1fr; }
+  .how { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .frame { padding: 16px 12px 18px 14px; }
+  .tick { display: none; }
+  .brand h1 { font-size: 28px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="mast">
+    <div class="brand"><h1>VANAGNI</h1><span class="hi" lang="hi">वनाग्नि</span></div>
+    <div class="sheetmeta">
+      <span>Sheet <b>Doon–Mussoorie</b> · 38 × 38 km · 300 m cells</span>
+      <span>Trained on <b id="trainSeason">2025</b> · scoring <b id="testSeason">2026</b> blind</span>
+      <span>Inputs: <b>Sentinel-2</b>, <b>VIIRS</b>, <b>IMD bulletins</b>, <b>range field notes</b></span>
+    </div>
+  </header>
+
+  <div class="controls">
+    <div class="date"><span class="label">Forecast for</span><strong id="dateLabel">–</strong></div>
+    <div class="slider">
+      <button class="btn" id="play" aria-label="Play season">Play</button>
+      <input type="range" id="day" min="1" max="89" value="66" aria-label="Day of season">
+    </div>
+    <div class="seg" role="group" aria-label="Map layer">
+      <button id="lyRisk" aria-pressed="true">Fire risk</button>
+      <button id="lySat" aria-pressed="false">Sentinel-2</button>
+      <button id="lyDrv" aria-pressed="false">What drives it</button>
+    </div>
+    <label class="check"><input type="checkbox" id="showFires" checked> Fires that day (truth)</label>
+  </div>
+
+  <div class="main">
+    <div class="mapbox">
+      <div class="frame" id="frame"><canvas id="map" width="768" height="768" aria-label="Risk map"></canvas></div>
+      <div class="legend" id="legend"></div>
+      <p class="caption" id="mapCaption"></p>
+    </div>
+
+    <aside class="side">
+      <div class="ranges" id="ranges" role="group" aria-label="Forest range"></div>
+
+      <div class="panel">
+        <h3><span>Evening bulletin <span class="label" id="bulDate"></span></span><span class="label" id="bulLang"></span></h3>
+        <div class="doc" id="bulletin"></div>
+        <div class="chips" id="bulChips"></div>
+      </div>
+
+      <div class="panel">
+        <h3><span>What if the bulletin said…</span></h3>
+        <textarea id="whatif" aria-label="Edit bulletin text" spellcheck="false"></textarea>
+        <div class="chips" id="wiChips"></div>
+        <div class="row">
+          <button class="btn primary" id="wiRun">Re-run forecast</button>
+          <button class="btn" id="wiHeat">Load heatwave (Hindi)</button>
+          <button class="btn" id="wiRain">Load rain day</button>
+          <button class="btn" id="wiReset">Reset</button>
+        </div>
+        <div class="delta" id="wiDelta">Edit the text, or load a sample, then re-run. The map redraws from the new numbers.</div>
+      </div>
+
+      <div class="panel">
+        <h3><span>Field note</span><span class="label" id="noteDate"></span></h3>
+        <div class="doc" id="note"></div>
+      </div>
+
+      <div class="panel cell" id="cellPanel">
+        <h3><span>Cell under cursor</span><span class="label" id="cellId">hover the map</span></h3>
+        <dl id="cellDl"></dl>
+        <div class="bars" id="cellBars"></div>
+      </div>
+      <div class="busy" id="busy" aria-live="polite"></div>
+    </aside>
+  </div>
+
+  <section class="lower">
+    <header><h2>Season so far · <span id="tlRange"></span></h2>
+      <span class="note">Bars: cells that burned. Line: cells the model expected to burn, issued the evening before. Strip: danger level read from each bulletin. Click to jump to a day.</span></header>
+    <div class="chart" id="timeline"></div>
+  </section>
+
+  <section class="lower">
+    <header><h2>Does reading the reports help?</h2>
+      <span class="note">Same model, same 2026 season, four input sets.</span></header>
+    <div class="two">
+      <div class="tablewrap"><table id="ablation"></table>
+        <p class="note" id="ablationNote"></p></div>
+      <div><div class="label" style="margin-bottom:6px">Which inputs the fused model leans on</div>
+        <div class="bars" id="importance"></div>
+        <p class="note">Drop in PR-AUC on the 2026 season when one input is shuffled. Colour shows where the input comes from.</p></div>
+    </div>
+  </section>
+
+  <section class="lower">
+    <header><h2>How it works</h2><span class="note" id="parserNote"></span></header>
+    <div class="how">
+      <div><h3><span class="src" style="background:var(--src-sat)"></span>Satellite</h3>
+        <p>Sentinel-2 scenes every 5 days, cloud-masked. NDVI, NDMI (canopy moisture) and NBR (burn scars), their two-week change, and VIIRS active-fire detections within 1.5 km over the last two nights. Terrain from the DEM, land cover, roads and villages.</p></div>
+      <div><h3><span class="src" style="background:var(--src-rep)"></span>Reports</h3>
+        <p>Each range's evening bulletin, in English or Hindi, is read sentence by sentence: tomorrow's maximum, minimum humidity, wind and gusts, dry-spell length, rain outlook and the fire-danger level. Weekly range-officer notes add needle litter and incidents attended. Missing fields stay missing.</p></div>
+      <div><h3><span class="src" style="background:var(--src-terrain)"></span>Model</h3>
+        <p>Gradient-boosted trees on 22 inputs per 300 m cell, trained on 2025 and scored on 2026 without refitting. Output is the probability a cell burns tomorrow. The same trees run in this page, which is why editing a bulletin redraws the map.</p></div>
+    </div>
+  </section>
+</div>
+
+<script type="application/json" id="vanagni-data">__DATA__</script>
+<script>
+/*__ENGINE__*/
+</script>
+<script>
+(async function () {
+  "use strict";
+  const V = window.Vanagni;
+  const data = JSON.parse(document.getElementById("vanagni-data").textContent);
+  const eng = await V.load(data);
+  const G = data.meta.grid, N = G * G, R = data.meta.ranges.length;
+  const TF = data.meta.text_fields;
+  const BUL = ["fc_tmax", "fc_rh", "fc_wind", "fc_gust", "fc_rain", "dry_spell", "danger", "obs_tmax"];
+  const LEVELS = ["low", "moderate", "high", "very high", "extreme"];
+  const RISK_BREAKS = [0.001, 0.005, 0.02, 0.05];
+  const RISK_NAMES = ["Low", "Moderate", "High", "Very high", "Extreme"];
+  const FIELD_LABEL = { obs_tmax: "Today max", fc_tmax: "Tomorrow max", fc_rh: "Min RH",
+    fc_wind: "Wind", fc_gust: "Gusts", fc_rain: "Rain outlook", rain_mm: "Rain today",
+    dry_spell: "Dry spell", danger: "Danger", litter: "Litter", incidents: "Incidents" };
+  const $ = id => document.getElementById(id);
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  // ---- state ----
+  const S = { day: 66, range: 0, layer: "risk", fires: true, hover: -1,
+    override: {}, cache: new Map(), attr: new Map() };
+
+  // default view: the busiest day, and the range that burned most on it
+  { let best = 1, bv = -1;
+    for (let d = 1; d < data.meta.n_days; d++) if (data.burning[d].length > bv) { bv = data.burning[d].length; best = d; }
+    S.day = best;
+    // prefer a range whose bulletin states most fields, so the first view shows the parser at work
+    let br = 0, brv = -1;
+    for (let r = 0; r < R; r++) {
+      const stated = Object.values(V.parse(data.docs[`${best - 1}:${r}:bulletin`].text).values).filter(v => !Number.isNaN(v)).length;
+      const score = data.metrics.series.observed[r][best] + (stated >= 6 ? 1000 : 0);
+      if (score > brv) { brv = score; br = r; }
+    }
+    S.range = br; }
+  $("day").value = S.day;
+  $("trainSeason").textContent = data.metrics.train_season;
+  $("testSeason").textContent = data.metrics.test_season;
+
+  const fmtDate = (d, opts) => new Date(data.meta.dates[d] + "T12:00:00")
+    .toLocaleDateString("en-IN", opts || { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+  const pct = p => (p * 100 < 0.01 ? "<0.01" : (p * 100).toFixed(p < 0.01 ? 2 : 1)) + "%";
+  const riskClass = p => RISK_BREAKS.filter(b => p >= b).length;
+  const hex = h => { const v = parseInt(h.replace("#", ""), 16); return [(v >> 16) & 255, (v >> 8) & 255, v & 255]; };
+
+  function overrideKey(d) { return d + ":" + JSON.stringify(S.override[d] || {}); }
+  function riskFor(d) {
+    const k = overrideKey(d);
+    if (!S.cache.has(k)) S.cache.set(k, V.risk(eng, d, S.override[d]));
+    return S.cache.get(k);
+  }
+  function attrFor(d) {
+    const k = overrideKey(d);
+    if (!S.attr.has(k)) { const r = riskFor(d); S.attr.set(k, V.attribute(eng, r.X, r.risk)); }
+    return S.attr.get(k);
+  }
+
+  // ---- static layers ----
+  const T = eng.terrain;
+  const edge = new Uint8Array(N);
+  for (let i = 0; i < N; i++) {
+    const r = Math.floor(i / G), c = i % G, id = T.range_id[i];
+    if ((c + 1 < G && T.range_id[i + 1] !== id) || (r + 1 < G && T.range_id[i + G] !== id)) edge[i] = 1;
+  }
+
+  // ---- map ----
+  const canvas = $("map"), ctx = canvas.getContext("2d");
+  const off = document.createElement("canvas"); off.width = off.height = G;
+  const octx = off.getContext("2d");
+  const satImg = {};
+  function sceneImage(k) {
+    if (!satImg[k]) { const im = new Image(); im.src = "data:image/png;base64," + data.scenes[k].rgb; im.onload = draw; satImg[k] = im; }
+    return satImg[k];
+  }
+
+  function draw() {
+    const d = S.day;
+    const lo = hex(css("--shade-lo")), hi = hex(css("--shade-hi"));
+    const water = hex(css("--water")), settle = hex(css("--settle"));
+    const ramp = [null, hex(css("--r1")), hex(css("--r2")), hex(css("--r3")), hex(css("--r4"))];
+    const srcCol = [hex(css("--src-terrain")), hex(css("--src-sat")), hex(css("--src-rep"))];
+    const ink = hex(css("--ink"));
+    const img = octx.createImageData(G, G), px = img.data;
+    const { risk } = riskFor(d);
+    const attr = S.layer === "drivers" ? attrFor(d) : null;
+    for (let i = 0; i < N; i++) {
+      const s = T.shade[i] / 255;
+      let c = [lo[0] + (hi[0] - lo[0]) * s, lo[1] + (hi[1] - lo[1]) * s, lo[2] + (hi[2] - lo[2]) * s];
+      const cov = T.cover[i];
+      if (cov === 0) c = water;
+      else if (cov === 1) c = settle;
+      else if (S.layer === "risk") {
+        const k = riskClass(risk[i]);
+        if (k > 0) { const a = [0, .55, .72, .85, .92][k]; c = c.map((v, j) => v * (1 - a) + ramp[k][j] * a); }
+      } else if (S.layer === "drivers" && risk[i] >= RISK_BREAKS[0]) {
+        const a3 = [attr.terrain[i], attr.satellite[i], attr.reports[i]];
+        let m = 0; for (let j = 1; j < 3; j++) if (a3[j] > a3[m]) m = j;
+        const a = Math.min(.9, .35 + riskClass(risk[i]) * .15);
+        c = c.map((v, j) => v * (1 - a) + srcCol[m][j] * a);
+      }
+      if (T.roads[i] && cov > 1) c = c.map((v, j) => v * .45 + ink[j] * .55);
+      if (edge[i]) c = c.map((v, j) => v * .35 + ink[j] * .65);
+      px[i * 4] = c[0]; px[i * 4 + 1] = c[1]; px[i * 4 + 2] = c[2]; px[i * 4 + 3] = 255;
+    }
+    octx.putImageData(img, 0, 0);
+    const W = canvas.width;
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, W, W);
+    if (S.layer === "sat") {
+      const k = V.sceneAt(data.scenes, d - 1);
+      const im = k >= 0 ? sceneImage(k) : null;
+      if (im && im.complete) { ctx.imageSmoothingEnabled = true; ctx.drawImage(im, 0, 0, W, W); ctx.imageSmoothingEnabled = false; }
+      // keep range boundaries legible over imagery
+      ctx.fillStyle = "rgba(255,255,255,.55)";
+      for (let i = 0; i < N; i++) if (edge[i]) ctx.fillRect((i % G) * W / G, Math.floor(i / G) * W / G, W / G, W / G);
+    } else ctx.drawImage(off, 0, 0, W, W);
+
+    const cs = W / G;
+    if (S.fires) {
+      ctx.lineWidth = Math.max(1.5, cs * .28);
+      ctx.strokeStyle = S.layer === "sat" ? "#FFF" : css("--ink");
+      for (const i of data.burning[d]) {
+        ctx.beginPath(); ctx.arc((i % G + .5) * cs, (Math.floor(i / G) + .5) * cs, cs * .62, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+    if (S.hover >= 0) {
+      ctx.lineWidth = 2; ctx.strokeStyle = css("--spruce");
+      ctx.strokeRect((S.hover % G) * cs - 1, Math.floor(S.hover / G) * cs - 1, cs + 2, cs + 2);
+    }
+    // range names
+    ctx.font = `600 ${Math.round(W / 34)}px ${css("--f-display")}`;
+    ctx.textAlign = "center";
+    data.meta.ranges.forEach((r, k) => {
+      const x = (r.col + .5) * cs, y = (r.row + .5) * cs;
+      ctx.lineWidth = 4; ctx.strokeStyle = S.layer === "sat" ? "rgba(0,0,0,.6)" : css("--sheet");
+      ctx.strokeText(r.name.toUpperCase(), x, y);
+      ctx.fillStyle = S.layer === "sat" ? "#FFF" : (k === S.range ? css("--spruce") : css("--ink"));
+      ctx.fillText(r.name.toUpperCase(), x, y);
+    });
+    drawLegend();
+  }
+
+  function drawLegend() {
+    const L = $("legend"), d = S.day;
+    if (S.layer === "risk") {
+      L.innerHTML = '<span class="label">Chance a cell burns tomorrow</span>' +
+        ["<0.1%", "0.1–0.5%", "0.5–2%", "2–5%", "≥5%"].map((t, k) =>
+          `<span><i style="background:${k ? `var(--r${k})` : "transparent"}"></i>${RISK_NAMES[k]} <span class="mono">${t}</span></span>`).join("");
+      $("mapCaption").textContent = "Each square is 300 m. Risk uses only what was known the evening before: the latest clear Sentinel-2 view, last two nights of VIIRS detections, the range's bulletin and its latest field note.";
+    } else if (S.layer === "sat") {
+      const k = V.sceneAt(data.scenes, d - 1);
+      const sc = k >= 0 ? data.scenes[k] : null;
+      L.innerHTML = '<span class="label">False colour B11 · B8 · B4</span><span>Forest green, dry ground tan, burn scars dark red, cloud white</span>';
+      $("mapCaption").textContent = sc ? `Latest scene before the forecast: ${fmtDate(sc.day, { day: "numeric", month: "short" })}, ${(sc.cloud * 100).toFixed(0)}% cloud. Cloudy pixels fall back to the last clear view.` : "No scene yet this season.";
+    } else {
+      L.innerHTML = '<span class="label">Largest contributor where risk ≥ 0.1%</span>' +
+        [["--src-terrain", "Terrain & land cover"], ["--src-sat", "Satellite"], ["--src-rep", "Reports"]]
+          .map(([v, t]) => `<span><i style="background:var(${v})"></i>${t}</span>`).join("");
+      $("mapCaption").textContent = "For each cell, one source at a time is reset to a typical 2025 value. The colour is the source whose reset lowers risk the most.";
+    }
+  }
+
+  // coordinate ticks in the sheet margin
+  function ticks() {
+    const fr = $("frame"); fr.querySelectorAll(".tick").forEach(t => t.remove());
+    const [w, s, e, n] = data.meta.bbox;
+    const cv = canvas.getBoundingClientRect(), fb = fr.getBoundingClientRect();
+    const ox = cv.left - fb.left, oy = cv.top - fb.top;
+    const dms = v => { const d = Math.floor(v), m = Math.round((v - d) * 60); return `${d}°${String(m).padStart(2, "0")}′`; };
+    for (let k = 0; k <= 4; k++) {
+      const t = k / 4;
+      const a = document.createElement("span"); a.className = "tick";
+      a.textContent = dms(w + (e - w) * t) + "E";
+      a.style.left = (ox + cv.width * t) + "px"; a.style.top = "4px"; a.style.transform = "translateX(-50%)";
+      fr.appendChild(a);
+      const b = document.createElement("span"); b.className = "tick";
+      b.textContent = dms(n - (n - s) * t) + "N";
+      b.style.top = (oy + cv.height * t) + "px"; b.style.left = "2px";
+      b.style.transform = "translateY(-50%) rotate(-90deg) translateX(0)"; b.style.transformOrigin = "left center";
+      b.style.left = "14px"; b.style.transform = "translate(-50%,-50%) rotate(-90deg)";
+      fr.appendChild(b);
+    }
+  }
+
+  // ---- side panel ----
+  function rangeExpected(d, r) {
+    const { risk } = riskFor(d); let s = 0;
+    for (let i = 0; i < N; i++) if (T.range_id[i] === r) s += risk[i];
+    return s;
+  }
+
+  function drawRanges() {
+    const box = $("ranges"); box.innerHTML = "";
+    data.meta.ranges.forEach((r, k) => {
+      const t = data.text[S.day - 1][k], lvl = t[TF.indexOf("danger")];
+      const b = document.createElement("button");
+      b.setAttribute("aria-pressed", k === S.range);
+      b.innerHTML = `<span class="nm">${r.name}</span><span class="sub">${lvl === null ? '<span class="pill">no rating</span>' : `<span class="pill l${lvl}">${LEVELS[lvl]}</span>`}<span class="mono">${rangeExpected(S.day, k).toFixed(1)}</span> cells</span>`;
+      b.title = "Danger level from the bulletin, and fire cells expected tomorrow";
+      b.onclick = () => { S.range = k; refreshSide(); draw(); drawTimeline(); };
+      box.appendChild(b);
+    });
+  }
+
+  function esc(s) { return s.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]); }
+  function highlight(text, spans) {
+    const sorted = [...spans].sort((a, b) => a[0] - b[0]);
+    let out = "", pos = 0;
+    for (const [a, b, f] of sorted) {
+      if (a < pos) continue;
+      out += esc(text.slice(pos, a)) + `<mark title="${FIELD_LABEL[f] || f}">${esc(text.slice(a, b))}</mark>`;
+      pos = b;
+    }
+    out += esc(text.slice(pos));
+    const nl = out.indexOf("\n");
+    return nl > 0 ? `<span class="head">${out.slice(0, nl)}</span>\n${out.slice(nl + 1)}` : out;
+  }
+  function fmtField(f, v) {
+    if (Number.isNaN(v) || v === null || v === undefined) return null;
+    switch (f) {
+      case "fc_tmax": case "obs_tmax": return `${v} °C`;
+      case "fc_rh": return `${v}%`;
+      case "fc_wind": case "fc_gust": return `${v} km/h`;
+      case "fc_rain": return v ? "showers" : "dry";
+      case "dry_spell": return `${v} d`;
+      case "danger": return LEVELS[v];
+      case "litter": return ["light", "moderate", "heavy"][v];
+      case "rain_mm": return `${v} mm`;
+      default: return String(v);
+    }
+  }
+  function chips(values, fields) {
+    return fields.map(f => {
+      const s = fmtField(f, values[f]);
+      return s === null ? `<span class="chip miss">${FIELD_LABEL[f]}: not stated</span>`
+        : `<span class="chip">${FIELD_LABEL[f]} <b>${s}</b></span>`;
+    }).join("");
+  }
+
+  function issuedBulletin() { return data.docs[`${S.day - 1}:${S.range}:bulletin`]; }
+  function latestNote() {
+    for (let d = S.day - 1; d >= 0; d--) { const n = data.docs[`${d}:${S.range}:field_note`]; if (n) return [d, n]; }
+    return [null, null];
+  }
+
+  function refreshSide() {
+    drawRanges();
+    const doc = issuedBulletin();
+    $("bulDate").textContent = "issued " + fmtDate(S.day - 1, { day: "numeric", month: "short" }) + ", 17:30";
+    $("bulLang").textContent = doc.lang === "hi" ? "हिन्दी" : "English";
+    const bEl = $("bulletin"); bEl.lang = doc.lang; bEl.innerHTML = highlight(doc.text, doc.spans);
+    const vals = V.parse(doc.text).values;
+    $("bulChips").innerHTML = chips(vals, ["fc_tmax", "fc_rh", "fc_wind", "dry_spell", "fc_rain", "danger"]);
+    const ov = S.override[S.day] && S.override[S.day][S.range];
+    if (!ov || !S.wiText) { $("whatif").value = doc.text; S.wiText = null; }
+    liveChips();
+    const [nd, note] = latestNote();
+    if (note) { $("noteDate").textContent = "week ending " + fmtDate(nd, { day: "numeric", month: "short" });
+      $("note").innerHTML = highlight(note.text, note.spans); }
+    else { $("noteDate").textContent = ""; $("note").textContent = "No field note filed yet this season."; }
+    refreshCell();
+  }
+
+  function liveChips() {
+    const v = V.parse($("whatif").value).values;
+    $("wiChips").innerHTML = chips(v, ["fc_tmax", "fc_rh", "fc_wind", "dry_spell", "fc_rain", "danger"]);
+  }
+
+  function refreshCell() {
+    const i = S.hover;
+    if (i < 0) { $("cellDl").innerHTML = ""; $("cellBars").innerHTML = ""; $("cellId").textContent = "hover or tap the map"; return; }
+    const { risk, X } = riskFor(S.day);
+    const F = data.meta.features, nf = F.length, x = f => X[i * nf + F.indexOf(f)];
+    const r = Math.floor(i / G), c = i % G;
+    $("cellId").textContent = `row ${r} · col ${c} · ${data.meta.ranges[T.range_id[i]].name}`;
+    const nd = v => Number.isNaN(v) ? "–" : v.toFixed(2);
+    $("cellDl").innerHTML = [
+      ["Risk tomorrow", `<b>${pct(risk[i])}</b> · ${RISK_NAMES[riskClass(risk[i])]}`],
+      ["Land cover", data.meta.covers[T.cover[i]]],
+      ["Elevation · slope", `${Math.round(T.elev[i])} m · ${T.slope[i].toFixed(0)}°`],
+      ["NDMI · NBR", `${nd(x("ndmi"))} · ${nd(x("nbr"))}`],
+      ["NDMI 15-day change", nd(x("d_ndmi_15"))],
+      ["VIIRS hits ≤1.5 km", String(x("viirs_nearby"))],
+      ["Road · village", `${(T.dist_road[i] / 1000).toFixed(1)} km · ${(T.dist_settlement[i] / 1000).toFixed(1)} km`],
+    ].map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join("");
+    if (T.cover[i] <= 1) { $("cellBars").innerHTML = '<span class="note">Water and built-up cells are not scored.</span>'; return; }
+    const at = attrFor(S.day);
+    const vals = [["Terrain", at.terrain[i], "--src-terrain"], ["Satellite", at.satellite[i], "--src-sat"], ["Reports", at.reports[i], "--src-rep"]];
+    const m = Math.max(1e-6, ...vals.map(v => Math.abs(v[1])));
+    $("cellBars").innerHTML = '<div class="label">Risk added by each source</div>' + vals.map(([n, v, col]) => {
+      const w = Math.abs(v) / m * 50;
+      const left = v >= 0 ? 50 : 50 - w;
+      return `<div class="bar"><span>${n}</span><span class="track"><span class="fill" style="left:${left}%;width:${w}%;background:var(${col});opacity:${v >= 0 ? 1 : .45}"></span><span class="fill" style="left:50%;width:1px;background:var(--ink-2)"></span></span><span class="v">${v >= 0 ? "+" : "−"}${pct(Math.abs(v))}</span></div>`;
+    }).join("");
+  }
+
+  // ---- what-if ----
+  function applyWhatIf() {
+    const text = $("whatif").value;
+    const v = V.parse(text).values;
+    const before = rangeExpected(S.day, S.range);
+    const o = {}; for (const f of BUL) o[f] = v[f];
+    S.override[S.day] = { ...(S.override[S.day] || {}), [S.range]: o };
+    S.wiText = text;
+    const after = rangeExpected(S.day, S.range);
+    const diff = after - before, cls = diff > 0 ? "up" : "down";
+    $("wiDelta").innerHTML = `${data.meta.ranges[S.range].name}: expected fire cells <strong>${before.toFixed(1)}</strong> → <strong class="${cls}">${after.toFixed(1)}</strong> (${diff >= 0 ? "+" : ""}${(before > 0 ? diff / before * 100 : 0).toFixed(0)}%). Map shows the edited forecast.`;
+    drawRanges(); draw(); refreshCell();
+  }
+  $("wiRun").onclick = () => withBusy("Re-running the model…", applyWhatIf);
+  $("whatif").addEventListener("input", liveChips);
+  $("wiReset").onclick = () => {
+    if (S.override[S.day]) delete S.override[S.day][S.range];
+    S.wiText = null; $("wiDelta").textContent = "Back to the issued bulletin.";
+    refreshSide(); draw();
+  };
+  $("wiHeat").onclick = () => {
+    const r = data.meta.ranges[S.range];
+    $("whatif").value = `मौसम बुलेटिन – ${r.hi} वन क्षेत्र, ${fmtDate(S.day - 1, { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, ".")}\nआज अधिकतम तापमान 38.2°C रहा। पिछले 34 दिनों से कोई वर्षा नहीं। कल अधिकतम तापमान लगभग 40°C रहने की संभावना। न्यूनतम सापेक्ष आर्द्रता 11% तक। हवा 27 किमी/घंटा की गति से, झोंके 41 किमी/घंटा तक। मौसम शुष्क रहेगा। वनाग्नि खतरा स्तर: अत्यधिक।`;
+    liveChips();
+  };
+  $("wiRain").onclick = () => {
+    const r = data.meta.ranges[S.range];
+    $("whatif").value = `District weather bulletin - ${r.name} forest range\nToday's maximum temperature was 27.4°C (-4.1 from normal). Rainfall recorded today: 18 mm. Max temp expected to touch 26 deg C tomorrow. Minimum relative humidity expected 64%. Winds westerly at 9 km/h. Thunderstorm with lightning possible at isolated places. Forest fire danger: LOW.`;
+    liveChips();
+  };
+
+  function withBusy(msg, fn) {
+    $("busy").textContent = msg;
+    setTimeout(() => { fn(); $("busy").textContent = ""; }, 20);
+  }
+
+  // ---- timeline ----
+  function drawTimeline() {
+    const r = S.range, D = data.meta.n_days;
+    $("tlRange").textContent = data.meta.ranges[r].name + " range";
+    const exp = data.metrics.series.expected[r], obs = data.metrics.series.observed[r];
+    const ymaxRaw = Math.max(4, ...obs, ...exp);
+    const step = ymaxRaw > 80 ? 40 : ymaxRaw > 40 ? 20 : ymaxRaw > 16 ? 10 : 5;
+    const ymax = Math.ceil(ymaxRaw / step) * step;
+    const W = 1000, H = 250, L = 44, Rm = 12, Tm = 12, B = 54;
+    const x = d => L + (d / (D - 1)) * (W - L - Rm), y = v => Tm + (1 - v / ymax) * (H - Tm - B);
+    const bw = (W - L - Rm) / D * .7;
+    let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Expected versus observed fire cells">`;
+    for (let v = 0; v <= ymax; v += step)
+      s += `<line x1="${L}" x2="${W - Rm}" y1="${y(v)}" y2="${y(v)}" stroke="var(--rule)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--ink-2)" font-family="var(--f-mono)">${v}</text>`;
+    for (let d = 1; d < D; d++) if (obs[d]) s += `<rect x="${x(d) - bw / 2}" y="${y(obs[d])}" width="${bw}" height="${y(0) - y(obs[d])}" fill="var(--r3)" opacity=".75"/>`;
+    s += `<path d="${exp.map((v, d) => (d ? "L" : "M") + x(d).toFixed(1) + " " + y(v).toFixed(1)).join(" ")}" fill="none" stroke="var(--ink)" stroke-width="2"/>`;
+    // danger strip from bulletins issued d-1
+    const sy = H - B + 10;
+    const lvCol = ["#6E8B7D", "#B19A2A", "#D7832A", "#C2441F", "#7E1626"];
+    for (let d = 1; d < D; d++) {
+      const lv = data.text[d - 1][r][TF.indexOf("danger")];
+      s += `<rect x="${x(d) - (W - L - Rm) / D / 2}" y="${sy}" width="${(W - L - Rm) / D + .5}" height="8" fill="${lv === null ? "var(--rule)" : lvCol[lv]}"/>`;
+    }
+    for (let d = 0; d < D; d++) {
+      const dt = new Date(data.meta.dates[d] + "T12:00:00");
+      if (dt.getDate() === 1 || d === 0) s += `<text x="${x(d)}" y="${H - 14}" font-size="11" fill="var(--ink-2)" font-family="var(--f-display)" letter-spacing=".06em">${dt.toLocaleDateString("en-IN", { month: "short" }).toUpperCase()} ${dt.getDate()}</text>`;
+    }
+    s += `<line x1="${x(S.day)}" x2="${x(S.day)}" y1="${Tm}" y2="${sy + 8}" stroke="var(--spruce)" stroke-width="2"/>`;
+    s += `<rect id="tlHit" x="${L}" y="0" width="${W - L - Rm}" height="${H}" fill="transparent" style="cursor:pointer"/></svg>`;
+    $("timeline").innerHTML = s;
+    $("tlHit").addEventListener("click", ev => {
+      const svg = $("timeline").querySelector("svg"), bb = svg.getBoundingClientRect();
+      const vx = (ev.clientX - bb.left) / bb.width * W;
+      setDay(Math.max(1, Math.min(D - 1, Math.round((vx - L) / (W - L - Rm) * (D - 1)))));
+    });
+  }
+
+  // ---- evidence tables ----
+  function drawEvidence() {
+    const A = data.metrics.ablation;
+    const rows = [["terrain only", "Terrain & land cover"], ["satellite only", "+ Satellite"], ["reports only", "+ Reports"], ["fused", "+ Satellite + Reports"]];
+    $("ablation").innerHTML = `<thead><tr><th>Inputs</th><th class="n">ROC-AUC</th><th class="n">PR-AUC</th><th class="n">Fires in top 10%</th><th class="n">Range-day ρ</th></tr></thead><tbody>` +
+      rows.map(([k, n]) => { const a = A[k]; return `<tr class="${k === "fused" ? "fused" : ""}"><td>${n}</td><td class="n">${a.roc_auc.toFixed(3)}</td><td class="n">${a.pr_auc.toFixed(4)}</td><td class="n">${(a.capture_top10 * 100).toFixed(1)}%</td><td class="n">${a.range_day_rho.toFixed(3)}</td></tr>`; }).join("") + "</tbody>";
+    const f = A.fused, s = A["satellite only"], r = A["reports only"];
+    $("ablationNote").textContent = `Patrolling the 10% of forest the fused model flags each evening covers ${(f.capture_top10 * 100).toFixed(0)}% of the next day's burning cells, ${(f.capture_top10 / .10).toFixed(1)}× chance. Satellite inputs are better at where (${(s.capture_top10 * 100).toFixed(0)}% vs ${(r.capture_top10 * 100).toFixed(0)}%); the reports are better at which range is in trouble on which day (ρ ${r.range_day_rho.toFixed(2)} vs ${s.range_day_rho.toFixed(2)}). Together they beat both on every measure. Base rate: ${(f.base_rate * 100).toFixed(2)}% of cell-days.`;
+    const groups = Object.fromEntries(Object.entries(V.GROUPS).flatMap(([g, fs]) => fs.map(x => [x, g])));
+    const nice = { ndmi: "NDMI (canopy moisture)", nbr: "NBR (burn scar)", ndvi: "NDVI", d_ndmi_15: "NDMI 15-day change", img_age: "Days since clear view", viirs_nearby: "VIIRS detections nearby", cover: "Land cover", elev: "Elevation", slope: "Slope", southness: "South-facing", dist_road: "Distance to road", dist_settlement: "Distance to village", fc_tmax: "Forecast max temp", fc_rh: "Forecast min humidity", fc_wind: "Forecast wind", fc_gust: "Forecast gusts", fc_rain: "Rain outlook", dry_spell: "Dry-spell length", danger: "Bulletin danger level", obs_tmax: "Observed max temp", litter: "Needle litter (note)", incidents: "Incidents attended (note)" };
+    const col = { terrain: "--src-terrain", satellite: "--src-sat", reports: "--src-rep" };
+    const imp = Object.entries(data.metrics.importance).sort((a, b) => b[1] - a[1]).slice(0, 12);
+    const m = imp[0][1];
+    $("importance").innerHTML = imp.map(([k, v]) => `<div class="bar" style="grid-template-columns: 172px 1fr 54px"><span>${nice[k] || k}</span><span class="track"><span class="fill" style="left:0;width:${Math.max(0, v) / m * 100}%;background:var(${col[groups[k]]})"></span></span><span class="v">${v.toFixed(3)}</span></div>`).join("");
+    const P = data.metrics.parser;
+    const fields = Object.keys(P);
+    const minCorrect = Math.min(...fields.map(k => P[k].correct_when_found));
+    $("parserNote").textContent = `${data.metrics.n_reports} reports read in 2026, ${(data.metrics.hindi_share * 100).toFixed(0)}% of them in Hindi. ` +
+      (minCorrect === 1 ? "Every stated value was extracted correctly." : `Lowest field accuracy: ${(minCorrect * 100).toFixed(1)}%.`);
+  }
+
+  // ---- wiring ----
+  function setDay(d) {
+    S.day = d; $("day").value = d;
+    $("dateLabel").textContent = fmtDate(d);
+    S.wiText = null;
+    draw(); refreshSide(); drawTimeline();
+  }
+  $("day").addEventListener("input", e => setDay(+e.target.value));
+  let timer = null;
+  $("play").onclick = () => {
+    if (timer) { clearInterval(timer); timer = null; $("play").textContent = "Play"; return; }
+    $("play").textContent = "Pause";
+    if (S.day >= data.meta.n_days - 1) setDay(1);
+    timer = setInterval(() => {
+      if (S.day >= data.meta.n_days - 1) { clearInterval(timer); timer = null; $("play").textContent = "Play"; return; }
+      setDay(S.day + 1);
+    }, 550);
+  };
+  const layers = { lyRisk: "risk", lySat: "sat", lyDrv: "drivers" };
+  for (const [id, l] of Object.entries(layers)) $(id).onclick = () => {
+    for (const k of Object.keys(layers)) $(k).setAttribute("aria-pressed", k === id);
+    S.layer = l;
+    if (l === "drivers") withBusy("Working out what drives each cell…", draw); else draw();
+  };
+  $("showFires").onchange = e => { S.fires = e.target.checked; draw(); };
+
+  function cellAt(ev) {
+    const bb = canvas.getBoundingClientRect();
+    const c = Math.floor((ev.clientX - bb.left) / bb.width * G), r = Math.floor((ev.clientY - bb.top) / bb.height * G);
+    return c >= 0 && c < G && r >= 0 && r < G ? r * G + c : -1;
+  }
+  let hoverRaf = 0;
+  canvas.addEventListener("pointermove", ev => {
+    const i = cellAt(ev);
+    if (i === S.hover) return;
+    S.hover = i;
+    cancelAnimationFrame(hoverRaf);
+    hoverRaf = requestAnimationFrame(() => { draw(); refreshCell(); });
+  });
+  canvas.addEventListener("click", ev => {
+    const i = cellAt(ev); if (i < 0) return;
+    if (T.range_id[i] !== S.range) { S.range = T.range_id[i]; refreshSide(); drawTimeline(); }
+    S.hover = i; draw(); refreshCell();
+  });
+
+  function sizeCanvas() {
+    const w = canvas.getBoundingClientRect().width || 600;
+    const px = Math.min(1536, Math.round(w * (window.devicePixelRatio || 1) / G) * G);
+    if (canvas.width !== px) { canvas.width = canvas.height = Math.max(G, px); }
+    draw(); ticks();
+  }
+  window.addEventListener("resize", () => { clearTimeout(sizeCanvas.t); sizeCanvas.t = setTimeout(sizeCanvas, 120); });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw);
+  new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  // first hover target: the riskiest cell in the selected range
+  { const { risk } = riskFor(S.day); let bi = -1, bv = -1;
+    for (let i = 0; i < N; i++) if (T.range_id[i] === S.range && risk[i] > bv) { bv = risk[i]; bi = i; }
+    S.hover = bi; }
+  $("dateLabel").textContent = fmtDate(S.day);
+  drawEvidence();
+  refreshSide();
+  drawTimeline();
+  sizeCanvas();
+  if (document.fonts) document.fonts.ready.then(() => { draw(); ticks(); });
+})();
+</script>
